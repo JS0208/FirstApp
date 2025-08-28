@@ -15,9 +15,13 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import app.staronground.dailyquote.ad.BannerAd
 import app.staronground.dailyquote.ad.InterstitialHolder
+import app.staronground.dailyquote.ad.AdIds
 import app.staronground.dailyquote.billing.BillingManager
 import app.staronground.dailyquote.data.QuoteRepository
 import app.staronground.dailyquote.data.ProStore
+import com.google.android.gms.ads.MobileAds
+import com.google.android.gms.ads.RequestConfiguration
+import com.google.android.gms.ads.AdRequest
 
 class MainActivity : ComponentActivity() {
     private lateinit var interstitial: InterstitialHolder
@@ -27,7 +31,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        interstitial = InterstitialHolder(this, adUnitId = "ca-app-pub-3940256099942544/1033173712")
+        // Initialize Mobile Ads + mark test devices (replace with your real device hash)
+        MobileAds.initialize(this) {}
+        MobileAds.setRequestConfiguration(
+            RequestConfiguration.Builder()
+                .setTestDeviceIds(listOf(AdRequest.DEVICE_ID_EMULATOR, "YOUR_TEST_DEVICE_ID"))
+                .build()
+        )
+
+        interstitial = InterstitialHolder(this, adUnitId = AdIds.interstitial())
         interstitial.load()
 
         billing = BillingManager(this)
@@ -62,7 +74,7 @@ class MainActivity : ComponentActivity() {
                         if (!isPro) {
                             BannerAd(
                                 modifier = Modifier.fillMaxWidth().height(50.dp),
-                                adUnitId = "ca-app-pub-3940256099942544/6300978111"
+                                adUnitId = AdIds.banner()
                             )
                         }
                     }
