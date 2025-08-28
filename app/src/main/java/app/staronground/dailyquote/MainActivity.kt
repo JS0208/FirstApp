@@ -11,10 +11,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import app.staronground.dailyquote.ad.BannerAd
 import app.staronground.dailyquote.ad.InterstitialHolder
 import app.staronground.dailyquote.billing.BillingManager
 import app.staronground.dailyquote.data.QuoteRepository
+import app.staronground.dailyquote.data.ProStore
 
 class MainActivity : ComponentActivity() {
     private lateinit var interstitial: InterstitialHolder
@@ -28,21 +31,40 @@ class MainActivity : ComponentActivity() {
         interstitial.load()
 
         billing = BillingManager(this)
-        billing.startConnection {}
+        val proState = mutableStateOf(false)
 
-        val repo = QuoteRepository()
+        // 구매 복구 & Pro 반영
+        billing.startConnection {
+            billing.refreshPurchases { isPro ->
+                runOnUiThread {
+                    proState.value = isPro
+                    lifecycleScope.launch { ProStore.set(this@MainActivity, isPro) }
+                }
+            }
+        }
+        // 저장된 Pro 상태 반영(앱 시작 직후 즉시 표시)
+        lifecycleScope.launch {
+            ProStore.flow(this@MainActivity).collect { pro ->
+                proState.value = pro
+            }
+        }
+
+        val repo = QuoteRepository(this)
 
         setContent {
             MaterialTheme {
                 val current by repo.current.collectAsState()
                 var nextCount by remember { mutableStateOf(0) }
+                val isPro by remember { proState }
 
                 Scaffold(
                     bottomBar = {
-                        BannerAd(
-                            modifier = Modifier.fillMaxWidth().height(50.dp),
-                            adUnitId = "ca-app-pub-3940256099942544/6300978111"
-                        )
+                        if (!isPro) {
+                            BannerAd(
+                                modifier = Modifier.fillMaxWidth().height(50.dp),
+                                adUnitId = "ca-app-pub-3940256099942544/6300978111"
+                            )
+                        }
                     }
                 ) { pad ->
                     Column(
@@ -68,20 +90,30 @@ class MainActivity : ComponentActivity() {
                             Button(onClick = {
                                 repo.next()
                                 nextCount += 1
-                                if (nextCount % 3 == 0) interstitial.showIfReady()
+                                if (!isPro && nextCount % 3 == 0) interstitial.showIfReady()
                             }) { Text("다음 명언") }
                         }
 
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Button(onClick = {
-                                billing.launchPurchase(this@MainActivity, productId = "remove_ads_once", isSubs = false)
-                            }) { Text("광고 제거 (일회성)") }
-
+                            if (!isPro) {
+                                Button(onClick = {
+                                    billing.launchPurchase(this@MainActivity, productId = "remove_ads_once", isSubs = false)
+                                }) { Text("광고 제거 (일회성)") }
+                            }
                             Button(onClick = {
                                 billing.launchPurchase(this@MainActivity, productId = "premium_monthly", isSubs = true)
                             }) { Text("프리미엄 (구독)") }
                         }
                     }
+                }
+            }
+        }
+
+        billing.onPurchaseCompleted = {
+            billing.refreshPurchases { isPro ->
+                runOnUiThread {
+                    proState.value = isPro
+                    lifecycleScope.launch { ProStore.set(this@MainActivity, isPro) }
                 }
             }
         }

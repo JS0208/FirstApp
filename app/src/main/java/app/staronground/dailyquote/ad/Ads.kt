@@ -26,6 +26,8 @@ fun BannerAd(modifier: Modifier = Modifier, adUnitId: String) {
 class InterstitialHolder(private val activity: Activity, private val adUnitId: String) {
     private var interstitialAd: InterstitialAd? = null
     private var loading = false
+    private var lastShown: Long = 0L
+    private val minIntervalMs = 60_000L // 60초 쿨다운
 
     fun load() {
         if (loading) return
@@ -45,9 +47,12 @@ class InterstitialHolder(private val activity: Activity, private val adUnitId: S
     }
 
     fun showIfReady(onShown: () -> Unit = {}) {
+        val now = System.currentTimeMillis()
+        if (now - lastShown < minIntervalMs) return // 쿨다운 미충족
         interstitialAd?.let { ad ->
             ad.show(activity)
             interstitialAd = null
+            lastShown = now
             onShown()
             load()
         } ?: run { load() }
