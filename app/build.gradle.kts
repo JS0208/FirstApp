@@ -1,7 +1,17 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+}
+
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) {
+        load(FileInputStream(keystorePropsFile))
+    }
 }
 
 android {
@@ -16,8 +26,22 @@ android {
         versionName = "1.0.0"
     }
 
+    signingConfigs {
+        if (keystorePropsFile.exists()) {
+            create("release") {
+                storeFile = file(keystoreProps["storeFile"]!!)
+                storePassword = keystoreProps["storePassword"]!!.toString()
+                keyAlias = keystoreProps["keyAlias"]!!.toString()
+                keyPassword = keystoreProps["keyPassword"]!!.toString()
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (keystorePropsFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -27,7 +51,11 @@ android {
         debug { }
     }
 
-    buildFeatures { compose = true }
+    buildFeatures {
+        // Ensure BuildConfig is generated (AdIds.kt imports BuildConfig).
+        buildConfig = true
+        compose = true
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
